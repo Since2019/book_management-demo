@@ -1,0 +1,1 @@
+ALTER TABLE `books` ADD `storage_location` text DEFAULT '' NOT NULL;

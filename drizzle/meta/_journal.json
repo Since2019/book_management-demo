@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785213663499,
+      "tag": "0000_puzzling_vulcan",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785235210960,
+      "tag": "0001_abnormal_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785806444849,
+      "tag": "0002_vengeful_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785808958654,
+      "tag": "0003_strange_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786521600000,
+      "tag": "0004_add_book_volume_and_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786525200000,
+      "tag": "0005_add_book_quantity",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786528800000,
+      "tag": "0006_add_book_cover_image",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1787226588795,
+      "tag": "0007_add_unified_book_number",
+      "breakpoints": true
+    }
+  ]
+}
