@@ -8,13 +8,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const image = `${protocol}://${host}/og.png`;
   return {
-    title: "书栈 · 图书管理系统",
-    description: "通过 ISBN 或索书号从多个书目来源检索图书，并保存到个人书库。",
+    title: "Bookstack · Library Manager",
+    description: "Search bibliographic sources by ISBN or call number and save books to your personal library.",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
-      title: "书栈 · 找一本书，留一份记录",
-      description: "面向中文用户的多来源图书检索与管理工具。",
-      images: [{ url: image, width: 1732, height: 907, alt: "书栈图书管理系统" }],
+      title: "Bookstack · Find a book, keep a record",
+      description: "Search multiple bibliographic sources and manage your personal library.",
+      images: [{ url: image, width: 1732, height: 907, alt: "Bookstack library manager" }],
       type: "website",
     },
     twitter: { card: "summary_large_image", images: [image] },
@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

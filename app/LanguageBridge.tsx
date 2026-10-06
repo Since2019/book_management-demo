@@ -8,6 +8,12 @@ export type AppLocale = "zh-CN" | "zh-TW" | "en";
 const toTraditionalChinese = OpenCC.Converter({ from: "cn", to: "hk" });
 
 const englishPhrases: Record<string, string> = {
+  "搜尋已保存圖書，支援簡繁體": "Search saved books in simplified or traditional Chinese",
+  "导入图书、箱子和标签 JSON": "Import books, boxes and tags from JSON",
+  "导出图书、箱子和标签 JSON": "Export books, boxes and tags to JSON",
+  "单独导出全部图片 ZIP": "Export all images as a ZIP archive",
+  "书架还空着": "Your library is empty",
+  "从上方检索一条资料，把它保存到这里。": "Search for a book above and save it here.",
   "书栈首页": "Bookstack home",
   "主导航": "Main navigation",
   "功能区导航": "Section navigation",
@@ -185,7 +191,7 @@ const attributeRecords = new WeakMap<Element, Map<string, TranslationRecord>>();
 
 export function LanguageBridge({ locale }: { locale: AppLocale }) {
   useEffect(() => {
-    const attributes = ["aria-label", "placeholder", "title"];
+    const attributes = ["aria-label", "placeholder", "title", "label"];
     let applying = false;
 
     function apply(root: Node) {

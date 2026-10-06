@@ -146,7 +146,7 @@ function externalImageSearchUrl(provider: string, title: string, author: string)
 }
 
 export default function Home() {
-  const [locale, setLocale] = useState<AppLocale>("zh-CN");
+  const [locale, setLocale] = useState<AppLocale>("en");
   const [mode, setMode] = useState<"isbn" | "unifiedBookNumber" | "callNumber" | "keyword">("isbn");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Book[]>([]);
