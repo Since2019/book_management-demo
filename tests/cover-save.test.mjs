@@ -52,23 +52,38 @@ test("candidate images from catalog hosts persist bytes in the database", async 
   } finally { db.close(); }
 });
 
-test("failed cover download keeps the form and never saves a book without its selected cover", async () => {
+for (const failure of ["HTTP 418", "timeout", "invalid response"]) test(`failed cover download (${failure}) still saves book information`, async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const handler = page.slice(page.indexOf("  async function saveBook("), page.indexOf("  async function deleteBook("));
   const calls = [];
   let pending = { sourceId: "example", title: "Test", coverUrl: "https://book.kongfz.com/a.png" };
   let message = "";
+  let toast = "";
+  let saved;
   const context = {
     AbortSignal, pendingBook: pending, setSavingId() {}, setMessage(value) { message = value; },
     setPendingBook(value) { pending = value; },
-    async fetch(url) { calls.push(url); return Response.json({ error: "下载失败" }, { status: 400 }); },
-    async loadBooks() {}, showToast() {},
+    async fetch(url, options) {
+      calls.push(url);
+      if (url === "/api/books") {
+        saved = JSON.parse(options.body);
+        return Response.json({ ok: true });
+      }
+      if (failure === "timeout") throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
+      if (failure === "invalid response") return new Response("invalid JSON");
+      return Response.json({ error: "下载失败" }, { status: 418 });
+    },
+    async loadBooks() {}, showToast(value) { toast = value; },
   };
   vm.runInNewContext(compile(handler), context);
   await context.saveBook({ preventDefault() {} });
-  assert.deepEqual(calls, ["/api/cover-assets"]);
-  assert.equal(pending.title, "Test");
-  assert.equal(message, "下载失败");
+  assert.deepEqual(calls, ["/api/cover-assets", "/api/books"]);
+  assert.equal(saved.title, "Test");
+  assert.equal(saved.coverImage, "");
+  assert.equal(saved.coverUrl, "");
+  assert.equal(pending, null);
+  assert.equal(message, "");
+  assert.match(toast, /封面下载失败，已先保存书目/);
 });
 
 test("selecting a candidate saves its asset immediately and book save retains the local reference", async () => {

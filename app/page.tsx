@@ -125,6 +125,13 @@ function emptyBook(): Book {
   };
 }
 
+function incrementBoxCode(code: string): string {
+  const lastNumber = code.match(/\d+(?!.*\d)/);
+  if (!lastNumber || lastNumber.index === undefined) return `${code}-01`;
+  const nextNumber = String(Number(lastNumber[0]) + 1).padStart(lastNumber[0].length, "0");
+  return `${code.slice(0, lastNumber.index)}${nextNumber}${code.slice(lastNumber.index + lastNumber[0].length)}`;
+}
+
 function displayedCover(value?: string) {
   if (!value || value.startsWith("data:")) return value ?? "";
   return `${value}${value.includes("?") ? "&" : "?"}v=20260816-2`;
@@ -146,7 +153,7 @@ function externalImageSearchUrl(provider: string, title: string, author: string)
 }
 
 export default function Home() {
-  const [locale, setLocale] = useState<AppLocale>("en");
+  const [locale, setLocale] = useState<AppLocale>("zh-CN");
   const [mode, setMode] = useState<"isbn" | "unifiedBookNumber" | "callNumber" | "keyword">("isbn");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Book[]>([]);
@@ -154,6 +161,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState("");
   const [message, setMessage] = useState("");
+  const [manualVolume, setManualVolume] = useState("");
   const [toast, setToast] = useState("");
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryBoxFilter, setLibraryBoxFilter] = useState("");
@@ -166,6 +174,8 @@ export default function Home() {
   const [unavailable, setUnavailable] = useState<string[]>([]);
   const [sourceErrors, setSourceErrors] = useState<Array<{ source: string; type: string; status?: number }>>([]);
   const [pendingBook, setPendingBook] = useState<Book | null>(null);
+  const [lastBookTemplate, setLastBookTemplate] = useState<{ boxId: number | null; tags: string }>({ boxId: null, tags: "" });
+  const preserveLastBookTemplate = useRef(false);
   const [previewBook, setPreviewBook] = useState<Book | null>(null);
   const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>([]);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
@@ -217,7 +227,13 @@ export default function Home() {
     const response = await fetch("/api/books", { cache: "no-store" });
     if (!response.ok) throw new Error("读取书库失败");
     const data = (await response.json()) as { books?: Book[] };
-    setBooks(data.books ?? []);
+    const nextBooks = data.books ?? [];
+    setBooks(nextBooks);
+    if (!preserveLastBookTemplate.current) {
+      const latestBook = nextBooks.reduce<Book | null>((latest, book) =>
+        !latest || (book.savedAt ?? "") > (latest.savedAt ?? "") ? book : latest, null);
+      if (latestBook) setLastBookTemplate({ boxId: latestBook.boxId ?? null, tags: latestBook.tags ?? "" });
+    }
   }
 
   async function loadTags() {
@@ -293,6 +309,30 @@ export default function Home() {
     setNewBox({ code: "", name: "", category: "", location: "", note: "" });
   }
 
+  async function copyBox(box: Box) {
+    const existingCodes = new Set(boxes.map((item) => item.code.toUpperCase()));
+    let code = incrementBoxCode(box.code);
+    for (let attempt = 0; existingCodes.has(code.toUpperCase()) && attempt < 1000; attempt += 1) {
+      code = incrementBoxCode(code);
+    }
+    if (existingCodes.has(code.toUpperCase())) {
+      setMessage("无法生成未使用的箱码，请手动建立箱子。");
+      return;
+    }
+    const response = await fetch("/api/boxes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, name: box.name, category: box.category, location: box.location, note: box.note }),
+    });
+    const data = await response.json() as { code?: string; error?: string };
+    if (!response.ok) {
+      setMessage(data.error || "复制箱子失败。");
+      return;
+    }
+    await loadBoxes();
+    showToast(`已复制箱子，箱码为 ${data.code}。`);
+  }
+
   async function deleteBox(box: Box) {
     if (!confirm(`删除“${box.name}”？箱内图书不会删除，但会变成未归箱。`)) return;
     const response = await fetch(`/api/boxes?id=${box.id}`, { method: "DELETE" });
@@ -363,6 +403,16 @@ export default function Home() {
     setPendingBook({ ...pendingBook, tags: JSON.stringify(next) });
   }
 
+  function applyLastBookTemplate(book: Book): Book {
+    preserveLastBookTemplate.current = false;
+    return { ...book, boxId: lastBookTemplate.boxId, tags: lastBookTemplate.tags };
+  }
+
+  function cancelLastBookTemplate() {
+    preserveLastBookTemplate.current = true;
+    setPendingBook((current) => current ? { ...current, boxId: null, tags: "" } : current);
+  }
+
   async function createTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const response = await fetch("/api/tags", {
@@ -430,10 +480,12 @@ export default function Home() {
     event.preventDefault();
     if (!pendingBook) return;
     let book = pendingBook;
+    let coverDownloadFailed = false;
     setSavingId(String(book.id ?? book.sourceId));
     setMessage("");
     try {
       if (!book.coverImage && book.coverUrl) {
+        try {
           const coverResponse = await fetch("/api/cover-assets", {
             method: "POST",
             signal: AbortSignal.timeout(15000),
@@ -444,6 +496,11 @@ export default function Home() {
           if (!coverResponse.ok || !coverData.coverImage) throw new Error(coverData.error || "封面保存失败。");
           book = { ...book, coverImage: coverData.coverImage };
           setPendingBook(book);
+        } catch {
+          coverDownloadFailed = true;
+          book = { ...book, coverImage: "", coverUrl: "" };
+          setPendingBook(book);
+        }
       }
       const editing = Boolean(book.id);
       const response = await fetch("/api/books", {
@@ -453,14 +510,13 @@ export default function Home() {
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(data.error || "保存失败");
+      if (!editing && !preserveLastBookTemplate.current) setLastBookTemplate({ boxId: book.boxId ?? null, tags: book.tags ?? "" });
       await loadBooks();
       const savedMessage = editing ? `《${book.title}》的馆藏信息已更新。` : `《${book.title}》已保存为 ${book.quantity ?? 1} 册馆藏。`;
-      showToast(savedMessage);
+      showToast(coverDownloadFailed ? `${savedMessage}封面下载失败，已先保存书目，可稍后上传封面。` : savedMessage);
       setPendingBook(null);
     } catch (error) {
-      setMessage(error instanceof Error && error.name === "TimeoutError"
-        ? "封面下载超时，请重试、上传图片，或选择先不保存封面。"
-        : error instanceof Error ? error.message : "保存失败，请稍后重试。");
+      setMessage(error instanceof Error ? error.message : "保存失败，请稍后重试。");
     } finally {
       setSavingId("");
     }
@@ -734,7 +790,10 @@ export default function Home() {
             </div>
             <div className="search-hint">
               <span>{mode === "isbn" ? "支持图书、期刊、乐谱与学术文献编号" : mode === "unifiedBookNumber" ? "支持 1987 年前中文出版物使用的统一书号" : mode === "callNumber" ? "索书号由 CALIS 联合目录查询" : "同时检索新加坡中医学院 51,521 条馆藏及多个开放书目源"}</span>
-              <a href={`https://opac2.calis.edu.cn/search?searchType=bibliography&searchField=cql.anywhere&searchWord=${encodeURIComponent(query)}`} target="_blank" rel="noreferrer">在 CALIS 查看 →</a>
+              <div className="search-hint-actions">
+                {query.trim() && <button type="button" onClick={() => setPendingBook(applyLastBookTemplate({ ...emptyBook(), ...(mode === "unifiedBookNumber" ? { unifiedBookNumber: query.trim() } : { isbn: query.trim() }) }))}>＋ 手动添加</button>}
+                <a href={`https://opac2.calis.edu.cn/search?searchType=bibliography&searchField=cql.anywhere&searchWord=${encodeURIComponent(query)}`} target="_blank" rel="noreferrer">在 CALIS 查看 →</a>
+              </div>
             </div>
             {query.trim() && <div className="deep-search-links"><span>网页深度检索</span><a href={`https://www.google.com/search?q=${encodeURIComponent(`图书 ${query}`)}`} target="_blank" rel="noreferrer">Google</a><a href={`https://www.bing.com/search?q=${encodeURIComponent(`图书 ${query}`)}`} target="_blank" rel="noreferrer">Bing</a><a href={`https://search.worldcat.org/search?q=${encodeURIComponent(query)}`} target="_blank" rel="noreferrer">WorldCat</a><a href={`https://ndlsearch.ndl.go.jp/en/search?keyword=${encodeURIComponent(query)}`} target="_blank" rel="noreferrer">日本国会图书馆</a></div>}
           </form>
@@ -742,7 +801,7 @@ export default function Home() {
       </section>
 
       <section className="workspace">
-        {message && <div className="notice" role="status">{message}<button onClick={() => setMessage("")} aria-label="关闭提示">×</button></div>}
+        {message && <div className="notice" role="status"><span>{message}</span>{!loading && results.length === 0 && query.trim() && <button type="button" className="notice-action" onClick={() => setPendingBook(applyLastBookTemplate({ ...emptyBook(), ...(mode === "unifiedBookNumber" ? { unifiedBookNumber: query.trim() } : { isbn: query.trim() }) }))}>＋ 手动添加</button>}<button onClick={() => setMessage("")} aria-label="关闭提示">×</button></div>}
         {unavailable.length > 0 && results.length > 0 && (
           <div className="notice source-notice" role="status"><span>{unavailable.map((source) => {
             const error = sourceErrors.find((item) => item.source === source);
@@ -808,7 +867,7 @@ export default function Home() {
                           <div><dt>{book.unifiedBookNumber ? "统一书号" : "标准编号"}</dt><dd>{book.isbn || book.unifiedBookNumber || "—"}</dd></div>
                           <div><dt>分类号</dt><dd>{book.callNumber || "待补充"}</dd></div>
                         </dl>
-                        <button className="save-button" disabled={savingId === book.sourceId} onClick={() => setPendingBook({ ...book, storageLocation: "", tags: "" })}>
+                        <button className="save-button" disabled={savingId === book.sourceId} onClick={() => setPendingBook(applyLastBookTemplate({ ...book, storageLocation: "" }))}>
                           {savingId === book.sourceId ? "保存中…" : copies ? `＋ 再添加一册（已有 ${copies} 册）` : "＋ 保存到书库"}
                         </button>
                       </div>
@@ -840,7 +899,7 @@ export default function Home() {
             {(libraryBoxFilter || libraryCategoryFilter) && <button type="button" onClick={() => { setLibraryBoxFilter(""); setLibraryCategoryFilter(""); setLibraryPage(1); }}>清除筛选</button>}
             <strong>{filteredBooks.length} 条记录</strong>
           </div>
-          <button className="manual-book-card" type="button" onClick={() => setPendingBook(emptyBook())}>
+          <button className="manual-book-card" type="button" onClick={() => setPendingBook(applyLastBookTemplate(emptyBook()))}>
             <span aria-hidden="true">＋</span>
             <strong>直接添加图书</strong>
             <small>没有索书号也没关系，只需填写书名即可入库</small>
@@ -873,7 +932,7 @@ export default function Home() {
                   })}{!volumesByBookSet.get(bookSetKey(book))?.size && <em>未標註</em>}</div></td>
                   <td className="mono">{book.isbn || book.unifiedBookNumber || "—"}</td>
                   <td><span className="call-number">{book.callNumber || "待编目"}</span></td>
-                  <td>{book.boxId ? <><strong>{boxes.find((box) => box.id === book.boxId)?.name || "未知箱"}</strong><span>{boxes.find((box) => box.id === book.boxId)?.location}</span></> : (book.storageLocation || "未归箱")}</td>
+                  <td>{book.boxId ? (() => { const box = boxes.find((item) => item.id === book.boxId); return <><strong>{box?.name || "未知箱"}</strong>{box?.code && <small className="box-code-caption">{box.code}</small>}<span>{box?.location}</span></>; })() : (book.storageLocation || "未归箱")}</td>
                   <td><div className="tag-list">{tagDefinitions.filter((tag) => tagIds(book.tags).includes(tag.id)).map((tag) => <span key={tag.id} style={{ backgroundColor: `${tag.color}1f`, color: tag.color }}>{tag.name}</span>)}{legacyTags(book.tags).map((tag) => <span key={tag}>{tag}</span>)}{!tagDefinitions.some((tag) => tagIds(book.tags).includes(tag.id)) && !legacyTags(book.tags).length && <em>无标签</em>}</div></td>
                   <td>{[book.publisher, book.year].filter(Boolean).join(" · ") || "—"}{book.note && <span className="book-note">{book.note}</span>}</td>
                   <td><div className="row-actions"><button className="edit-button" onClick={() => setPendingBook({ ...book })} aria-label={`编辑《${book.title}》`}>编辑</button><button className="delete-button" onClick={() => deleteBook(book)} aria-label={`删除《${book.title}》`}>删除</button></div></td>
@@ -940,8 +999,9 @@ export default function Home() {
               <label>统一书号<input value={pendingBook.unifiedBookNumber ?? ""} onChange={(event) => setPendingBook({ ...pendingBook, unifiedBookNumber: event.target.value })} placeholder="例如 14200·100" /><small>用于 1987 年前出版物，与 ISBN 分开保存</small></label>
               <label>分类号 / 索书号<input value={pendingBook.callNumber} onChange={(event) => setPendingBook({ ...pendingBook, callNumber: event.target.value })} placeholder="例如 H178" /></label>
               <label>版本<input value={pendingBook.edition} onChange={(event) => setPendingBook({ ...pendingBook, edition: event.target.value })} /></label>
-              <fieldset className="volume-picker"><legend>冊別（可多選）</legend><div>{sortVolumes([...namedVolumeOptions, "1", "2", "3", ...selectedVolumes(pendingBook.volume)]).map((volume) => { const selected = selectedVolumes(pendingBook.volume).includes(volume); return <button type="button" key={volume} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => { const current = selectedVolumes(pendingBook.volume); const next = selected ? current.filter((item) => item !== volume) : [...current, volume]; setPendingBook({ ...pendingBook, volume: sortVolumes(next).join(",") }); }}>{volumeLabel(volume)}</button>; })}<button type="button" className="add-volume" onClick={() => { const current = selectedVolumes(pendingBook.volume); const numbered = current.filter((volume) => /^\d+$/.test(volume)).map(Number); const nextNumber = Math.max(3, ...numbered) + 1; setPendingBook({ ...pendingBook, volume: sortVolumes([...current, String(nextNumber)]).join(",") }); }}>＋ 新增一冊</button></div><small>可同時選擇多冊；「＋」會自動加入下一個冊號</small></fieldset>
+              <fieldset className="volume-picker"><legend>冊別（可多選）</legend><div>{sortVolumes([...namedVolumeOptions, "1", "2", "3", ...selectedVolumes(pendingBook.volume)]).map((volume) => { const selected = selectedVolumes(pendingBook.volume).includes(volume); return <button type="button" key={volume} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => { const current = selectedVolumes(pendingBook.volume); const next = selected ? current.filter((item) => item !== volume) : [...current, volume]; setPendingBook({ ...pendingBook, volume: sortVolumes(next).join(",") }); }}>{volumeLabel(volume)}</button>; })}<button type="button" className="add-volume" onClick={() => { const current = selectedVolumes(pendingBook.volume); const numbered = current.filter((volume) => /^\d+$/.test(volume)).map(Number); const nextNumber = Math.max(3, ...numbered) + 1; setPendingBook({ ...pendingBook, volume: sortVolumes([...current, String(nextNumber)]).join(",") }); }}>＋ 新增一冊</button></div><div className="manual-volume-entry"><label>手動輸入冊號<input type="number" min="1" max="999" step="1" value={manualVolume} onChange={(event) => setManualVolume(event.target.value)} placeholder="例如 39" /></label><button type="button" disabled={!/^[1-9]\d{0,2}$/.test(manualVolume)} onClick={() => { const current = selectedVolumes(pendingBook.volume); setPendingBook({ ...pendingBook, volume: sortVolumes([...current, manualVolume]).join(",") }); setManualVolume(""); }}>加入冊號</button></div><small>可同時選擇多冊；「＋」會自動加入下一個冊號，也可手動輸入冊號</small></fieldset>
               <label>數量<input type="number" min="1" max="999" step="1" value={pendingBook.quantity ?? 1} onChange={(event) => setPendingBook({ ...pendingBook, quantity: Math.min(999, Math.max(1, Number(event.target.value) || 1)) })} /><small>相同書籍有多本時可直接填寫數量</small></label>
+              {!pendingBook.id && (lastBookTemplate.boxId || lastBookTemplate.tags) && <div className="wide template-reset-row"><span>已套用上一本书的箱子与标签</span><button type="button" className="cancel-template-button" onClick={cancelLastBookTemplate}>取消自动模板套用</button></div>}
               <label className="wide">放入箱子<select value={pendingBook.boxId ?? ""} onChange={(event) => setPendingBook({ ...pendingBook, boxId: event.target.value ? Number(event.target.value) : null })}><option value="">暂不归箱（使用下方独立位置）</option>{boxes.map((box) => <option key={box.id} value={box.id}>{box.code} · {box.name} · {box.location}</option>)}</select><small>选择箱子后，扫码箱码即可看到本书及箱子位置。</small></label>
               <label className="wide">独立藏储地点<input value={pendingBook.storageLocation ?? ""} onChange={(event) => setPendingBook({ ...pendingBook, storageLocation: event.target.value })} placeholder="未归箱图书可填写，例如 三楼 A区 03架" /></label>
               <label className="wide">备注<textarea value={pendingBook.note ?? ""} onChange={(event) => setPendingBook({ ...pendingBook, note: event.target.value })} placeholder="选填：品相、缺页、签名或其他说明" rows={3} /></label>
@@ -980,7 +1040,7 @@ export default function Home() {
               <div className="wide box-form-actions">{editingBoxId && <button type="button" className="cancel-button" onClick={cancelEditBox}>取消编辑</button>}<button className="primary-button">{editingBoxId ? "保存箱子修改" : "＋ 建立箱子"}</button></div>
             </form>
             <div className="box-labels">
-              {boxes.map((box) => <article className={`box-label${editingBoxId === box.id ? " editing" : ""}`} key={box.id}><div className="label-copy"><span>{box.category || "综合馆藏"}</span><h3>{box.name}</h3><p>{box.location}</p></div><Barcode value={box.code} /><footer><span>{box.bookCount ?? 0} 册</span><div className="box-card-actions no-print"><button type="button" className="edit-button" onClick={() => editBox(box)}>编辑</button><button type="button" className="delete-button" onClick={() => deleteBox(box)}>删除</button></div></footer></article>)}
+              {boxes.map((box) => <article className={`box-label${editingBoxId === box.id ? " editing" : ""}`} key={box.id}><div className="label-copy"><span>{box.category || "综合馆藏"}</span><h3>{box.name}</h3><p>{box.location}</p></div><Barcode value={box.code} /><footer><span>{box.bookCount ?? 0} 册</span><div className="box-card-actions no-print"><button type="button" className="edit-button" onClick={() => editBox(box)}>编辑</button><button type="button" className="copy-box-button" onClick={() => void copyBox(box)}>复制箱子</button><button type="button" className="delete-button" onClick={() => deleteBox(box)}>删除</button></div></footer></article>)}
               {!boxes.length && <div className="empty-tags">还没有箱子。请先建立第一个箱子。</div>}
             </div>
             {boxes.length > 0 && <div className="dialog-actions no-print"><button type="button" className="primary-button" onClick={() => window.print()}>打印全部箱码标签</button></div>}

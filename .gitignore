@@ -38,12 +38,24 @@ yarn-error.log*
 
 # typescript
 next-env.d.ts
-*.tsbuildinfo
-/tmp/
-/clipboard-tool/*.previous.exe
-/clipboard-tool/*.updated.exe
 /dist/
 /.wrangler/
 /outputs/
 /work/
-/public/box-label-*.svg
+
+# Local library data, backups, and generated artifacts
+/.wrangler/
+/data/library*
+/data/private*/
+/outputs/
+/tmp/
+/build/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+*.log
+/clipboard-tool/*.updated.exe
+/clipboard-tool/*.previous.exe

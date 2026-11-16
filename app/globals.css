@@ -78,6 +78,9 @@ h1 em { color: var(--green); font-style: normal; }
 .primary-button:disabled { opacity: .65; cursor: wait; }
 .search-hint { display: flex; justify-content: space-between; margin: 14px 3px 0; color: #9a9d98; font-size: 11px; }
 .search-hint a { color: var(--green); }
+.search-hint-actions { display: flex; align-items: center; gap: 14px; }
+.search-hint-actions button { border: 0; padding: 0; background: transparent; color: var(--green); font: inherit; cursor: pointer; }
+.search-hint-actions button:hover, .search-hint a:hover { text-decoration: underline; }
 .deep-search-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 3px 0; font-size: 11px; color: #9a9d98; }
 .deep-search-links a { padding: 5px 9px; border: 1px solid #d7d0c2; border-radius: 3px; color: var(--green); background: #fff; }
 .deep-search-links a:hover { border-color: var(--green); background: #eef6f2; }
@@ -85,6 +88,7 @@ h1 em { color: var(--green); font-style: normal; }
 .workspace { max-width: 1560px; margin: 0 auto; padding: 42px clamp(18px, 2.5vw, 40px) 80px; }
 .notice { display: flex; justify-content: space-between; gap: 18px; background: #edf3ef; color: var(--green); border-left: 3px solid var(--green); padding: 14px 18px; margin-bottom: 28px; font-size: 13px; }
 .notice button { border: 0; background: transparent; color: var(--green); font-size: 18px; }
+.notice .notice-action { flex: 0 0 auto; border: 1px solid currentColor; padding: 7px 12px; font-size: 12px; font-weight: 700; }
 .success-toast { position: fixed; z-index: 200; top: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: min(520px, calc(100vw - 32px)); padding: 13px 16px; color: white; background: #245f4f; border: 1px solid #174a3d; box-shadow: 0 14px 38px rgba(22,66,54,.28); font-size: 13px; animation: toast-in .2s ease-out; }
 .success-toast > span { display: grid; place-items: center; flex: 0 0 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.18); font-weight: 800; }
 .success-toast button { margin-left: auto; border: 0; background: transparent; color: white; font-size: 20px; cursor: pointer; }
@@ -200,6 +204,7 @@ td strong { display: block; color: var(--ink); font: 700 14px Georgia, "Songti S
 .cover-upload.saving { opacity: .5; cursor: wait; }
 .cover-preview-trigger { padding: 0; cursor: zoom-in; }
 td > span { color: #929994; font-size: 10px; }
+.box-code-caption { display: block; margin: -2px 0 3px; color: #929994; font: 10px ui-monospace, monospace; }
 .mono { font-family: ui-monospace, monospace; }
 .call-number { color: var(--green); background: #edf3ef; padding: 5px 7px; white-space: nowrap; }
 .delete-button { border: 0; background: transparent; color: #a36a57; font-size: 11px; }
@@ -276,6 +281,11 @@ footer { border-top: 1px solid var(--line); padding: 24px clamp(24px, 6vw, 88px)
 .volume-picker button { height: 44px; border: 1px solid var(--line); background: white; color: #77817d; font-size: 12px; font-weight: 700; }
 .volume-picker button.selected { border-color: var(--green); background: #e5f0eb; color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
 .volume-picker button.add-volume { border-style: dashed; border-color: #83aa9b; color: var(--green); background: #f6faf8; }
+.manual-volume-entry { display: flex; align-items: end; gap: 8px; margin-top: 9px; }
+.manual-volume-entry label { display: grid; flex: 1; gap: 5px; color: #6d7773; font-size: 10px; font-weight: 700; }
+.manual-volume-entry input { width: 100%; min-width: 0; height: 36px; border: 1px solid var(--line); padding: 0 9px; color: var(--ink); font: inherit; }
+.manual-volume-entry button { height: 36px; padding: 0 12px; border-color: #83aa9b; color: var(--green); background: #f6faf8; }
+.manual-volume-entry button:disabled { opacity: .45; cursor: not-allowed; }
 .volume-picker small { display: block; margin-top: 7px; color: #9a9d98; font-size: 10px; }
 .book-tag-picker { border: 1px solid var(--line); background: #fbfaf6; padding: 15px; }
 .tag-picker-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
@@ -359,8 +369,12 @@ footer { border-top: 1px solid var(--line); padding: 24px clamp(24px, 6vw, 88px)
 .label-copy p { margin: 0 0 12px; color: var(--muted); font-size: 11px; }
 .box-label footer { padding: 8px 0 0; border: 0; }
 .box-card-actions { display: flex; gap: 8px; }
+.copy-box-button { border: 0; padding: 0; background: transparent; color: var(--green); font-size: 11px; cursor: pointer; }
 .catalog-form input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(31, 90, 76, .1); }
 .catalog-form .wide { grid-column: 1 / -1; }
+.template-reset-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -2px 0 -8px; color: var(--muted); font-size: 11px; }
+.cancel-template-button { border: 1px solid var(--line); background: transparent; color: var(--green); padding: 7px 10px; font-size: 11px; cursor: pointer; }
+.cancel-template-button:hover { background: #eef6f2; }
 .dialog-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px; }
 .cancel-button { border: 1px solid var(--line); background: transparent; color: var(--muted); padding: 11px 20px; }
 .dialog-save { min-height: 44px; }

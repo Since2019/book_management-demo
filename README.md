@@ -12,11 +12,16 @@ English is the default for new browser sessions. Use **EN**, **简**, or **繁**
 
 ## Windows installation
 
-1. Double-click `安装.cmd` while connected to the internet. It downloads a project-local Node.js runtime, installs dependencies, and builds the app.
-2. Double-click `启动.cmd`. The app opens at http://127.0.0.1:3000/ when ready.
+1. Double-click `install.cmd` while connected to the internet. It downloads a project-local Node.js runtime, installs dependencies, and builds the app.
+2. Double-click `start.cmd`. The app opens at http://127.0.0.1:3000/ when ready.
 3. Close the launch window to stop the server.
 
 The portable runtime is stored in `.runtime`; the local database is stored in `.wrangler`. Back up the entire `.wrangler` directory to preserve your library. These folders are ignored by Git.
+
+## Local database backup and import
+
+- Double-click `backup-local-database.cmd` to choose a folder and save a verified SQLite backup of your local library, including cover images.
+- Double-click `import-local-database.cmd` to select a SQLite backup and replace this project's local library. Close the app first; the script saves a safety copy of the current database before importing.
 
 ## Development
 
